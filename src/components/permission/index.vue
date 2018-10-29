@@ -34,13 +34,17 @@
       <form-container ref="inlineForm" :model="inlineForm">
         <field-input v-model="inlineForm.name" label="角色名" width="10"
                      :rules="r(true).all(R.require)" prop="name"></field-input>
-        <el-form-item label="权限" label-width="120px">
-          <checkbox1 all="全选" :list="list1" :chosen="chosen" @dataList="dataList"></checkbox1>
-        </el-form-item>
-        <el-form-item label=约束规则 label-width="120px">
-          <el-input placeholder="请输入规则" v-for="(item, index) in ruleList" :key="index" v-model="ruleData[index]">
-            <template slot="prepend">{{item.name}}</template>
-          </el-input>
+        <!--<el-form-item label="权限" label-width="120px">-->
+        <!--<checkbox1 all="全选" :list="list1" :chosen="chosen" @dataList="dataList"></checkbox1>-->
+        <!--</el-form-item>-->
+        <!--<el-form-item label=约束规则 label-width="120px">-->
+        <!--<el-input placeholder="请输入规则" v-for="(item, index) in ruleList" :key="index" v-model="ruleData[index]">-->
+        <!--<template slot="prepend">{{item.name}}</template>-->
+        <!--</el-input>-->
+        <!--</el-form-item>-->
+        <el-form-item label="测试" label-width="120px">
+          <checkbox2 all="全选" :list="list1" :chosen="chosen" :attach="attach" @dataList="dataList"
+                     @rule1="rule1"></checkbox2>
         </el-form-item>
 
       </form-container>
@@ -58,10 +62,12 @@
   import api from 'graph/role.graphql';
   import {historyPageMixin} from 'common/js/mixin';
   import checkbox1 from '@/base/checkbox'
+  import checkbox2 from '@/base/checkbox2'
 
   export default {
     components: {
-      checkbox1
+      checkbox1,
+      checkbox2
     },
     data() {
       return {
@@ -72,6 +78,8 @@
         chosen: [],
         ruleList: [],
         ruleData: [],
+        ruleData1: [],
+        attach: [],
       }
     },
     mixins: [historyPageMixin],
@@ -95,6 +103,9 @@
 
 
     methods: {
+      rule1(data) {
+        this.ruleData = data;
+      },
       dataList(data) {
         console.log(data);
         this.ruleList = data;
@@ -115,7 +126,6 @@
           this.ruleList1[index] = filterAttr(value);
         });
         this.list1 = this.ruleList1;
-        console.log(this.list1);
         this.dialogType = type;
         this.$refs.dialog.show();
         this.$nextTick(() => {    //dialog框出现以后，进行清空验证
@@ -126,25 +136,59 @@
           return;
         } else {
           this.inlineForm = JSON.parse(JSON.stringify(row));
-          this.inlineForm.privilegeItems.forEach((value, index) => {
-            if (value.constraintRule != null) {
-              this.ruleData.push(value.constraintRule);
-            } else {
-              this.ruleData.push('');
-            }
-            this.list1.forEach((value1, index) => {
-              if (value.privilege.name == value1.name) {
-                this.$nextTick(() => {
-                  this.chosen.push(value1);
-                });
-              }
+          if (this.inlineForm.privilegeItems) {
+            // this.inlineForm.privilegeItems.forEach((value, index) => {
+            //   if (value.constraintRule != null) {
+            //     this.ruleData.push(value.constraintRule);
+            //   } else {
+            //     this.ruleData.push('');
+            //   }
+            //   this.list1.forEach((value1, index) => {
+            //     if (value.privilege.name == value1.name) {
+            //
+            //     } else {
+            //       console.log(1);
+            //     }
+            //   })
+            // });
+
+            let promise = new Promise((resolve, reject) => {
+              this.list1.forEach((value, index) => {
+                this.inlineForm.privilegeItems.forEach((value1, index1) => {
+                  if (value.name == value1.privilege.name) {
+                    this.$nextTick(() => {
+                      this.chosen.push(value);
+                      let a = {
+                        name: value.name,
+                        roles: value1.constraintRule
+                      };
+                      this.ruleData.push(a);
+                      resolve();
+                    });
+                  }
+                })
+              });
+            });
+            promise.then(() => {
+              this.list1.forEach((value, index) => {
+                this.ruleData.forEach((value1, index1) => {
+                  if (value.name == value1.name) {
+                    this.ruleData1.push(value1);
+                  }
+                })
+                // if (value.name == this.ruleData[index].name) {
+                //   this.ruleData1.push(this.ruleData[index].roles)
+                // } else {
+                //   this.ruleData1.push('')
+                // }
+              })
             })
-          });
+          }
+          console.log(this.ruleData1);
           this.ruleList = this.chosen;
+          // this.attach = this.ruleData;
         }
-
       },
-
       dialogConfirm() {
         this.inlineForm['privilegeItems'] = [];
         this.ruleList.forEach((value, index) => {
@@ -156,7 +200,6 @@
           };
           this.inlineForm['privilegeItems'].push(a);
         });
-        console.log(this.inlineForm);
         this.$refs.inlineForm.gqlValidate(this.dialogType === 'add' ? api.addRole : api.updateRole, {
           role: this.inlineForm
         }, () => {
