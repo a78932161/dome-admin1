@@ -101,7 +101,7 @@ export let formRulesMixin = {
     mutate(mutation, variables) {
       return this.$apollo.mutate({
         mutation: mutation,
-        variables: variables,
+        variables: JSON.parse(JSON.stringify(variables)),
       });
     },
 

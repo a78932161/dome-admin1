@@ -31,18 +31,14 @@
 
     <bos-paginator :pageInfo="paginator" @bosCurrentPageChanged="changePage"/>
     <field-dialog :title="title" ref="dialog" @confirm="dialogConfirm">
-      <form-container ref="inlineForm" :model="inlineForm">
-        <field-input v-model="inlineForm.name" label="角色名" width="10"
+      <form-container ref="role" :model="role">
+        <field-input v-model="role.name" label="角色名" width="10"
                      :rules="r(true).all(R.require)" prop="name"></field-input>
-        <el-form-item label="权限" label-width="120px">
-          <checkbox1 all="全选" :list="list1" :chosen="chosen" @dataList="dataList"></checkbox1>
-        </el-form-item>
-        <el-form-item label=约束规则 label-width="120px">
-          <el-input placeholder="请输入规则" v-for="(item, index) in ruleList" :key="index" v-model="ruleData[index]">
-            <template slot="prepend">{{item.name}}</template>
-          </el-input>
-        </el-form-item>
+        <div v-for="(item,index) in role.privilegeItems">
 
+          <el-checkbox v-model="item.chosen"  >{{item.privilege.name}}</el-checkbox>
+          <field-input v-model="item.constraintRule" width="6"></field-input>
+        </div>
       </form-container>
     </field-dialog>
 
@@ -57,25 +53,27 @@
   import {rules} from 'common/js/validate';
   import api from 'graph/role.graphql';
   import {historyPageMixin} from 'common/js/mixin';
-  import checkbox1 from '@/base/checkbox'
   import {formRulesMixin,extendRules} from '../../field/common/mixinComponent';
+
+
 
   export default {
     components: {
-      checkbox1
-    },
-    data() {
-      return {
-        rules,
-        dialogType: '',
-        inlineForm: {},
-        list1: [],
-        chosen: [],
-        ruleList: [],
-        ruleData: [],
-      }
     },
     mixins: [formRulesMixin,historyPageMixin],
+    data() {
+      return {
+        param: {
+          namelike: '%%'
+        },
+        permissionList:[],
+        role:{},
+
+
+
+      }
+    },
+
     apollo: {
       list() {//loadingKey
         //created的时候会执行一次，context代表的是vm对象，调试时可以查阅代码：vue-apollo.esm.js:  options = options.call(context)
@@ -98,11 +96,8 @@
 
     created(){
       this.gqlQuery(api.PrivilegeList,{paginator:{page:1,size:50}},function(data){
-        var deepclonedata = JSON.parse(JSON.stringify(data));
-        var jqlname = Object.keys(deepclonedata)[0];
-        var result = deepclonedata[jqlname];
-        this.ruleList1= !result ? null : (result.hasOwnProperty('content') ? result.content : result);
-      });
+        this.permissionList=data;
+      },true);
     },
     methods: {
       query(query, variables) {
@@ -112,11 +107,17 @@
         });
       },
 
-      gqlQuery(graphql, variables, sCallback) {
+      gqlQuery(graphql, variables, sCallback,isdefault) {
         this.query(graphql, variables).then((data) => {
           if (data.errors) {   //未通过服务端的表单验证
             this.$message.error(`${data.errors}`);
           }else {
+            if(isdefault){
+              var deepclonedata = JSON.parse(JSON.stringify(data.data));
+              var jqlname = Object.keys(deepclonedata)[0];
+              var result = deepclonedata[jqlname];
+              data= !result ? null : (result.hasOwnProperty('content') ? result.content : result);
+            }
             sCallback.call(this, data);
           }
         }).catch((error) => {
@@ -126,75 +127,75 @@
       },
 
 
-      dataList(data) {
-        console.log(data);
-        this.ruleList = data;
-      },
       formatTime(time) {
         if (time == null) return;
         return new Date(parseInt(time)).toLocaleString().replace(/:\d{1,2}$/, ' ');
       },
+
       adminStatus(disabled) {
         return disabled ? '删除' : "正常";
       },
       dialogShow(type, row) {
-        this.chosen = [];
-        this.ruleData = [];
-        this.ruleList = [];
-        this.list1 = [];
-        this.ruleList1.forEach((value, index) => {
-          this.ruleList1[index] = filterAttr(value);
-        });
-        this.list1 = this.ruleList1;
-        console.log(this.list1);
-        this.dialogType = type;
-        this.$refs.dialog.show();
-        this.$nextTick(() => {    //dialog框出现以后，进行清空验证
-          this.$refs.inlineForm.clearValidate();
-        });
-        if (type === 'add') {
-          this.inlineForm = {};
-          return;
-        } else {
-          this.inlineForm = JSON.parse(JSON.stringify(row));
-          this.inlineForm.privilegeItems.forEach((value, index) => {
-            if (value.constraintRule != null) {
-              this.ruleData.push(value.constraintRule);
-            } else {
-              this.ruleData.push('');
-            }
-            this.list1.forEach((value1, index) => {
-              if (value.privilege.name == value1.name) {
-                this.$nextTick(() => {
-                  this.chosen.push(value1);
-                });
-              }
-            })
-          });
-          this.ruleList = this.chosen;
+        this.role=row;
+
+        for(var k=0;k<this.role.privilegeItems.length;k++){
+          this.role.privilegeItems[k].chosen=true;
         }
 
+        for(var i=0;i<this.permissionList.length;i++){
+          var found=false;
+          for(var j=0;j<this.role.privilegeItems.length;j++){
+            if(this.permissionList[i].id==this.role.privilegeItems[j].privilege.id){
+             // this.role.privilegeItems[j].privilege=this.permissionList[i];
+              found=true;
+              break;
+            }
+          }
+          if(!found){
+            this.role.privilegeItems.push({
+              constraintRule:null,
+              chosen:false,
+              privilege:this.permissionList[i]});
+          }
+        }
+
+        this.dialogType = type;
+        this.$refs.dialog.show();
       },
 
+
+
       dialogConfirm() {
-        this.inlineForm['privilegeItems'] = [];
-        this.ruleList.forEach((value, index) => {
-          let a = {
-            constraintRule: this.ruleData[index],
-            privilege: {
-              id: value.id,
-            }
-          };
-          this.inlineForm['privilegeItems'].push(a);
-        });
-        console.log(this.inlineForm);
-        this.$refs.inlineForm.gqlValidate(this.dialogType === 'add' ? api.addRole : api.updateRole, {
-          role: this.inlineForm
-        }, () => {
+        this.role.privilegeItems=this.role.privilegeItems.filter((item)=>item.chosen);
+        JSON.parse(JSON.stringify(this.role))
+
+
+        for(var k=0;k<this.role.privilegeItems.length;k++){
+          var item=this.role.privilegeItems[k];
+          delete item.chosen;
+        }
+        this.removeTypename(this.role);
+
+        this.gqlMutate(api.updateRole,{role:this.role},() => {
           this.callback(`${this.title}成功`);
           this.$refs.dialog.hide();
-        });
+        })
       },
+
+      removeTypename(obj){
+        if(!(obj instanceof Object)){
+          return;
+        }
+        if(obj["__typename"]){
+          delete obj["__typename"];
+        }
+        var arr=Object.keys(obj);
+        for(var i=0;i<arr.length;i++){
+          this.removeTypename(obj[arr[i]]);
+        }
+      },
+
+
       deleteOne(row) {
         let item = JSON.parse(JSON.stringify(row));
         item.disabled = true;
