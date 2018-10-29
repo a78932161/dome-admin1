@@ -58,6 +58,7 @@
   import api from 'graph/role.graphql';
   import {historyPageMixin} from 'common/js/mixin';
   import checkbox1 from '@/base/checkbox'
+  import {formRulesMixin,extendRules} from '../../field/common/mixinComponent';
 
   export default {
     components: {
@@ -74,16 +75,17 @@
         ruleData: [],
       }
     },
-    mixins: [historyPageMixin],
+    mixins: [formRulesMixin,historyPageMixin],
     apollo: {
       list() {//loadingKey
         //created的时候会执行一次，context代表的是vm对象，调试时可以查阅代码：vue-apollo.esm.js:  options = options.call(context)
         return this.getEntityQuery(api.RoleList);
-      },
-      ruleList1() {
+      }
+   /* ,  ruleList1() {
         return this.getEntityQuery(api.PrivilegeList);
       }
-    },
+*/
+   },
     computed: {
       isDialogAdd() {
         return this.dialogType === 'add' ? true : false;
@@ -94,7 +96,36 @@
     },
 
 
+    created(){
+      this.gqlQuery(api.PrivilegeList,{paginator:{page:1,size:50}},function(data){
+        var deepclonedata = JSON.parse(JSON.stringify(data));
+        var jqlname = Object.keys(deepclonedata)[0];
+        var result = deepclonedata[jqlname];
+        this.ruleList1= !result ? null : (result.hasOwnProperty('content') ? result.content : result);
+      });
+    },
     methods: {
+      query(query, variables) {
+        return this.$apollo.query({
+          query: query,
+          variables: variables,
+        });
+      },
+
+      gqlQuery(graphql, variables, sCallback) {
+        this.query(graphql, variables).then((data) => {
+          if (data.errors) {   //未通过服务端的表单验证
+            this.$message.error(`${data.errors}`);
+          }else {
+            sCallback.call(this, data);
+          }
+        }).catch((error) => {
+          console.error(error);  //服务器错误或者网络状态问题
+          this.$message.error(`${error}`);
+        })
+      },
+
+
       dataList(data) {
         console.log(data);
         this.ruleList = data;

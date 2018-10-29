@@ -37,7 +37,9 @@ export let formRulesMixin = {
     return {
       R: __RULES__,
 
-      partialPiginator: {totalPages: 10, totalElements: 10},
+      //用来分页组件显示总页数和记录总条数。为了避免重复刷新，所以得从param中拿出来
+      partialPiginator: {totalPages: 0, totalElements: 0},
+      //page丛1开始。
       param: {paginator: {size: 5, page: 1}}
     }
   },
@@ -122,7 +124,7 @@ export let formRulesMixin = {
           return !result ? null : (result.hasOwnProperty('content') ? result.content : result);
         },//如果需要使用this来代表vm，则不能使用=>函数，因为箭头函数的this与所在闭包this相同
         variables() {
-          return this.param;
+          return this.param;//一旦发生变化，则重新拉去数据
         },
         skip() {
           return skipFunction ? skipFunction.call(this) : false;
