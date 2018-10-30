@@ -34,9 +34,9 @@
       <form-container ref="role" :model="role">
         <field-input v-model="role.name" label="角色名" width="10"
                      :rules="r(true).all(R.require)" prop="name"></field-input>
-        <div v-for="(item,index) in role.privilegeItems">
+        <div v-for="(item,index) in role.privilegeItems" :key="index">
 
-          <el-checkbox v-model="item.chosen"  >{{item.privilege.name}}</el-checkbox>
+          <input type="checkbox" v-model="item.chosen">{{item.privilege.name}}
           <field-input v-model="item.constraintRule" width="6"></field-input>
         </div>
       </form-container>
@@ -53,24 +53,19 @@
   import {rules} from 'common/js/validate';
   import api from 'graph/role.graphql';
   import {historyPageMixin} from 'common/js/mixin';
-  import {formRulesMixin,extendRules} from '../../field/common/mixinComponent';
-
+  import {formRulesMixin, extendRules} from '../../field/common/mixinComponent';
 
 
   export default {
-    components: {
-    },
-    mixins: [formRulesMixin,historyPageMixin],
+    components: {},
+    mixins: [formRulesMixin, historyPageMixin],
     data() {
       return {
         param: {
           namelike: '%%'
         },
-        permissionList:[],
-        role:{},
-
-
-
+        permissionList: [],
+        role: {},
       }
     },
 
@@ -79,11 +74,11 @@
         //created的时候会执行一次，context代表的是vm对象，调试时可以查阅代码：vue-apollo.esm.js:  options = options.call(context)
         return this.getEntityQuery(api.RoleList);
       }
-   /* ,  ruleList1() {
-        return this.getEntityQuery(api.PrivilegeList);
-      }
-*/
-   },
+      /* ,  ruleList1() {
+           return this.getEntityQuery(api.PrivilegeList);
+         }
+   */
+    },
     computed: {
       isDialogAdd() {
         return this.dialogType === 'add' ? true : false;
@@ -94,39 +89,12 @@
     },
 
 
-    created(){
-      this.gqlQuery(api.PrivilegeList,{paginator:{page:1,size:50}},function(data){
-        this.permissionList=data;
-      },true);
+    created() {
+      this.gqlQuery(api.PrivilegeList, {paginator: {page: 1, size: 50}}, function (data) {
+        this.permissionList = data;
+      }, true);
     },
     methods: {
-      query(query, variables) {
-        return this.$apollo.query({
-          query: query,
-          variables: variables,
-        });
-      },
-
-      gqlQuery(graphql, variables, sCallback,isdefault) {
-        this.query(graphql, variables).then((data) => {
-          if (data.errors) {   //未通过服务端的表单验证
-            this.$message.error(`${data.errors}`);
-          }else {
-            if(isdefault){
-              var deepclonedata = JSON.parse(JSON.stringify(data.data));
-              var jqlname = Object.keys(deepclonedata)[0];
-              var result = deepclonedata[jqlname];
-              data= !result ? null : (result.hasOwnProperty('content') ? result.content : result);
-            }
-            sCallback.call(this, data);
-          }
-        }).catch((error) => {
-          console.error(error);  //服务器错误或者网络状态问题
-          this.$message.error(`${error}`);
-        })
-      },
-
-
       formatTime(time) {
         if (time == null) return;
         return new Date(parseInt(time)).toLocaleString().replace(/:\d{1,2}$/, ' ');
@@ -136,65 +104,79 @@
         return disabled ? '删除' : "正常";
       },
       dialogShow(type, row) {
-        this.role=row;
-
-        for(var k=0;k<this.role.privilegeItems.length;k++){
-          this.role.privilegeItems[k].chosen=true;
+        this.role = {privilegeItems: []};
+        if (type == 'edit') {
+          this.role = JSON.parse(JSON.stringify(row));
+        } else {
+          this.role = {privilegeItems: []}
         }
 
-        for(var i=0;i<this.permissionList.length;i++){
-          var found=false;
-          for(var j=0;j<this.role.privilegeItems.length;j++){
-            if(this.permissionList[i].id==this.role.privilegeItems[j].privilege.id){
-             // this.role.privilegeItems[j].privilege=this.permissionList[i];
-              found=true;
-              break;
-            }
-          }
-          if(!found){
+        console.log(this.role.privilegeItems);
+        this.role.privilegeItems.forEach((value) => {
+          value.chosen = true;
+        });
+        this.permissionList.forEach((value) => {
+          if (!this.role.privilegeItems.some(value1 => value.id == value1.privilege.id)) {
             this.role.privilegeItems.push({
-              constraintRule:null,
-              chosen:false,
-              privilege:this.permissionList[i]});
+              constraintRule: null,
+              chosen: false,
+              privilege: value
+            })
           }
-        }
-
+        });
+        console.log(type);
         this.dialogType = type;
         this.$refs.dialog.show();
+        // for (var i = 0; i < this.permissionList.length; i++) {
+        //   var found = false;
+        //   for (var j = 0; j < this.role.privilegeItems.length; j++) {
+        //     if (this.permissionList[i].id == this.role.privilegeItems[j].privilege.id) {
+        //       // this.role.privilegeItems[j].privilege=this.permissionList[i];
+        //       found = true;
+        //       break;
+        //     }
+        //   }
+        //   if (!found) {
+        //     this.role.privilegeItems.push({
+        //       constraintRule: null,
+        //       chosen: false,
+        //       privilege: this.permissionList[i]
+        //     });
+        //   }
+        // }
+        // for (var k = 0; k < this.role.privilegeItems.length; k++) {
+        //   this.role.privilegeItems[k].chosen = true;
+        // }
       },
-
-
-
       dialogConfirm() {
-        this.role.privilegeItems=this.role.privilegeItems.filter((item)=>item.chosen);
-        JSON.parse(JSON.stringify(this.role))
-
-
-        for(var k=0;k<this.role.privilegeItems.length;k++){
-          var item=this.role.privilegeItems[k];
-          delete item.chosen;
-        }
+        this.role.privilegeItems = this.role.privilegeItems.filter((item) => item.chosen);
+        JSON.parse(JSON.stringify(this.role));
+        // for (var k = 0; k < this.role.privilegeItems.length; k++) {
+        //   var item = this.role.privilegeItems[k];
+        //   delete item.chosen;
+        // }
+        this.role.privilegeItems.forEach((value) => {
+          delete value.chosen;
+        });
         this.removeTypename(this.role);
-
-        this.gqlMutate(api.updateRole,{role:this.role},() => {
+        this.gqlMutate(api.updateRole, {role: this.role}, () => {
           this.callback(`${this.title}成功`);
           this.$refs.dialog.hide();
         })
       },
 
-      removeTypename(obj){
-        if(!(obj instanceof Object)){
+      removeTypename(obj) {
+        if (!(obj instanceof Object)) {
           return;
         }
-        if(obj["__typename"]){
+        if (obj["__typename"]) {
           delete obj["__typename"];
         }
-        var arr=Object.keys(obj);
-        for(var i=0;i<arr.length;i++){
+        var arr = Object.keys(obj);
+        for (var i = 0; i < arr.length; i++) {
           this.removeTypename(obj[arr[i]]);
         }
       },
-
 
       deleteOne(row) {
         let item = JSON.parse(JSON.stringify(row));

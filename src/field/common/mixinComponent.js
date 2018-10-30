@@ -104,6 +104,30 @@ export let formRulesMixin = {
         variables: JSON.parse(JSON.stringify(variables)),
       });
     },
+    query(query, variables) {
+      return this.$apollo.query({
+        query: query,
+        variables: variables,
+      });
+    },
+    gqlQuery(graphql, variables, sCallback, isdefault) {
+      this.query(graphql, variables).then((data) => {
+        if (data.errors) {   //未通过服务端的表单验证
+          this.$message.error(`${data.errors}`);
+        } else {
+          if (isdefault) {
+            var deepclonedata = JSON.parse(JSON.stringify(data.data));
+            var jqlname = Object.keys(deepclonedata)[0];
+            var result = deepclonedata[jqlname];
+            data = !result ? null : (result.hasOwnProperty('content') ? result.content : result);
+          }
+          sCallback.call(this, data);
+        }
+      }).catch((error) => {
+        console.error(error);  //服务器错误或者网络状态问题
+        this.$message.error(`${error}`);
+      })
+    },
 
     //便利方法，供在apollo:配置块中使用。设置好默认值，只要给一个query对象或者gql字符串即可
     getEntityQuery(queryObject, skipFunction) {
