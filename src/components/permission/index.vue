@@ -31,22 +31,14 @@
 
     <bos-paginator :pageInfo="paginator" @bosCurrentPageChanged="changePage"/>
     <field-dialog :title="title" ref="dialog" @confirm="dialogConfirm">
-      <form-container ref="inlineForm" :model="inlineForm">
-        <field-input v-model="inlineForm.name" label="角色名" width="10"
+      <form-container ref="role" :model="role">
+        <field-input v-model="role.name" label="角色名" width="10"
                      :rules="r(true).all(R.require)" prop="name"></field-input>
-        <!--<el-form-item label="权限" label-width="120px">-->
-        <!--<checkbox1 all="全选" :list="list1" :chosen="chosen" @dataList="dataList"></checkbox1>-->
-        <!--</el-form-item>-->
-        <!--<el-form-item label=约束规则 label-width="120px">-->
-        <!--<el-input placeholder="请输入规则" v-for="(item, index) in ruleList" :key="index" v-model="ruleData[index]">-->
-        <!--<template slot="prepend">{{item.name}}</template>-->
-        <!--</el-input>-->
-        <!--</el-form-item>-->
-        <el-form-item label="测试" label-width="120px">
-          <checkbox2 all="全选" :list="list1" :chosen="chosen" :attach="attach" @dataList="dataList"
-                     @rule1="rule1"></checkbox2>
-        </el-form-item>
+        <div v-for="(item,index) in role.privilegeItems" :key="index">
 
+          <input type="checkbox" v-model="item.chosen">{{item.privilege.name}}
+          <field-input v-model="item.constraintRule" width="6"></field-input>
+        </div>
       </form-container>
     </field-dialog>
 
@@ -61,36 +53,31 @@
   import {rules} from 'common/js/validate';
   import api from 'graph/role.graphql';
   import {historyPageMixin} from 'common/js/mixin';
-  import checkbox1 from '@/base/checkbox'
-  import checkbox2 from '@/base/checkbox2'
+  import {formRulesMixin, extendRules} from '../../field/common/mixinComponent';
+
 
   export default {
-    components: {
-      checkbox1,
-      checkbox2
-    },
+    components: {},
+    mixins: [formRulesMixin, historyPageMixin],
     data() {
       return {
-        rules,
-        dialogType: '',
-        inlineForm: {},
-        list1: [],
-        chosen: [],
-        ruleList: [],
-        ruleData: [],
-        ruleData1: [],
-        attach: [],
+        param: {
+          namelike: '%%'
+        },
+        permissionList: [],
+        role: {},
       }
     },
-    mixins: [historyPageMixin],
+
     apollo: {
       list() {//loadingKey
         //created的时候会执行一次，context代表的是vm对象，调试时可以查阅代码：vue-apollo.esm.js:  options = options.call(context)
         return this.getEntityQuery(api.RoleList);
-      },
-      ruleList1() {
-        return this.getEntityQuery(api.PrivilegeList);
       }
+      /* ,  ruleList1() {
+           return this.getEntityQuery(api.PrivilegeList);
+         }
+   */
     },
     computed: {
       isDialogAdd() {
@@ -102,111 +89,95 @@
     },
 
 
+    created() {
+      this.gqlQuery(api.PrivilegeList, {paginator: {page: 1, size: 50}}, function (data) {
+        this.permissionList = data;
+      }, true);
+    },
     methods: {
-      rule1(data) {
-        this.ruleData = data;
-      },
-      dataList(data) {
-        console.log(data);
-        this.ruleList = data;
-      },
       formatTime(time) {
         if (time == null) return;
         return new Date(parseInt(time)).toLocaleString().replace(/:\d{1,2}$/, ' ');
       },
+
       adminStatus(disabled) {
         return disabled ? '删除' : "正常";
       },
       dialogShow(type, row) {
-        this.chosen = [];
-        this.ruleData = [];
-        this.ruleList = [];
-        this.list1 = [];
-        this.ruleList1.forEach((value, index) => {
-          this.ruleList1[index] = filterAttr(value);
-        });
-        this.list1 = this.ruleList1;
-        this.dialogType = type;
-        this.$refs.dialog.show();
-        this.$nextTick(() => {    //dialog框出现以后，进行清空验证
-          this.$refs.inlineForm.clearValidate();
-        });
-        if (type === 'add') {
-          this.inlineForm = {};
-          return;
+        this.role = {privilegeItems: []};
+        if (type == 'edit') {
+          this.role = JSON.parse(JSON.stringify(row));
         } else {
-          this.inlineForm = JSON.parse(JSON.stringify(row));
-          if (this.inlineForm.privilegeItems) {
-            // this.inlineForm.privilegeItems.forEach((value, index) => {
-            //   if (value.constraintRule != null) {
-            //     this.ruleData.push(value.constraintRule);
-            //   } else {
-            //     this.ruleData.push('');
-            //   }
-            //   this.list1.forEach((value1, index) => {
-            //     if (value.privilege.name == value1.name) {
-            //
-            //     } else {
-            //       console.log(1);
-            //     }
-            //   })
-            // });
+          this.role = {privilegeItems: []}
+        }
 
-            let promise = new Promise((resolve, reject) => {
-              this.list1.forEach((value, index) => {
-                this.inlineForm.privilegeItems.forEach((value1, index1) => {
-                  if (value.name == value1.privilege.name) {
-                    this.$nextTick(() => {
-                      this.chosen.push(value);
-                      let a = {
-                        name: value.name,
-                        roles: value1.constraintRule
-                      };
-                      this.ruleData.push(a);
-                      resolve();
-                    });
-                  }
-                })
-              });
-            });
-            promise.then(() => {
-              this.list1.forEach((value, index) => {
-                this.ruleData.forEach((value1, index1) => {
-                  if (value.name == value1.name) {
-                    this.ruleData1.push(value1);
-                  }
-                })
-                // if (value.name == this.ruleData[index].name) {
-                //   this.ruleData1.push(this.ruleData[index].roles)
-                // } else {
-                //   this.ruleData1.push('')
-                // }
-              })
+        console.log(this.role.privilegeItems);
+        this.role.privilegeItems.forEach((value) => {
+          value.chosen = true;
+        });
+        this.permissionList.forEach((value) => {
+          if (!this.role.privilegeItems.some(value1 => value.id == value1.privilege.id)) {
+            this.role.privilegeItems.push({
+              constraintRule: null,
+              chosen: false,
+              privilege: value
             })
           }
-          console.log(this.ruleData1);
-          this.ruleList = this.chosen;
-          // this.attach = this.ruleData;
-        }
+        });
+        console.log(type);
+        this.dialogType = type;
+        this.$refs.dialog.show();
+        // for (var i = 0; i < this.permissionList.length; i++) {
+        //   var found = false;
+        //   for (var j = 0; j < this.role.privilegeItems.length; j++) {
+        //     if (this.permissionList[i].id == this.role.privilegeItems[j].privilege.id) {
+        //       // this.role.privilegeItems[j].privilege=this.permissionList[i];
+        //       found = true;
+        //       break;
+        //     }
+        //   }
+        //   if (!found) {
+        //     this.role.privilegeItems.push({
+        //       constraintRule: null,
+        //       chosen: false,
+        //       privilege: this.permissionList[i]
+        //     });
+        //   }
+        // }
+        // for (var k = 0; k < this.role.privilegeItems.length; k++) {
+        //   this.role.privilegeItems[k].chosen = true;
+        // }
       },
       dialogConfirm() {
-        this.inlineForm['privilegeItems'] = [];
-        this.ruleList.forEach((value, index) => {
-          let a = {
-            constraintRule: this.ruleData[index],
-            privilege: {
-              id: value.id,
-            }
-          };
-          this.inlineForm['privilegeItems'].push(a);
+        this.role.privilegeItems = this.role.privilegeItems.filter((item) => item.chosen);
+        JSON.parse(JSON.stringify(this.role));
+        // for (var k = 0; k < this.role.privilegeItems.length; k++) {
+        //   var item = this.role.privilegeItems[k];
+        //   delete item.chosen;
+        // }
+        this.role.privilegeItems.forEach((value) => {
+          delete value.chosen;
         });
-        this.$refs.inlineForm.gqlValidate(this.dialogType === 'add' ? api.addRole : api.updateRole, {
-          role: this.inlineForm
-        }, () => {
+        this.removeTypename(this.role);
+        this.gqlMutate(api.updateRole, {role: this.role}, () => {
           this.callback(`${this.title}成功`);
           this.$refs.dialog.hide();
-        });
+        })
       },
+
+      removeTypename(obj) {
+        if (!(obj instanceof Object)) {
+          return;
+        }
+        if (obj["__typename"]) {
+          delete obj["__typename"];
+        }
+        var arr = Object.keys(obj);
+        for (var i = 0; i < arr.length; i++) {
+          this.removeTypename(obj[arr[i]]);
+        }
+      },
+
       deleteOne(row) {
         let item = JSON.parse(JSON.stringify(row));
         item.disabled = true;

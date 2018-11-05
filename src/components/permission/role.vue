@@ -58,7 +58,6 @@
 
   import {filterAttr} from 'common/js'
   import {rules} from 'common/js/validate';
-  import apiAd from 'graph/admin.graphql';
   import {historyPageMixin} from 'common/js/mixin';
   import checkbox1 from '@/base/checkbox'
 
